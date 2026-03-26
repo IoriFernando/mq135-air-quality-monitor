@@ -1,117 +1,157 @@
-# Projeto: Medição de CO₂ (PPM) com MQ-135 no Arduino UNO usando PlatformIO
+# 🌫️ MQ-135 - Calibração e Monitoramento da Qualidade do Ar
 
-## 📌 Objetivo
+## 📌 Visão Geral
 
-Desenvolver um sistema para estimar a concentração de dióxido de carbono (CO₂) em partes por milhão (PPM) utilizando o sensor MQ-135 conectado a um Arduino UNO da Arduino, com desenvolvimento no PlatformIO.
+Este projeto utiliza o sensor MQ-135 para monitorar a qualidade do ar com base em variações relativas de gases.
+Devido às limitações do sensor, o sistema não mede CO₂ absoluto com precisão, mas fornece um **indicador confiável da qualidade do ar**.
 
-## 🔧 Materiais Utilizados
+---
 
-- Arduino UNO
-- Sensor MQ-135
-- Jumpers
+# ⚙️ 🔧 Processo de Calibração
 
-- PlatformIO (VSCode)
+## 🎯 Objetivo
 
-## 🔌 Circuito
+Determinar o valor de **R0**, que representa a resistência do sensor em condições de ar limpo.
 
-<div style="text-align: center;">
-  <img src="img/circuit-uno-mq-135.jpg" alt="UNO MQ-135" width="400">
-</div>
+---
 
+## 🔄 Etapas da Calibração
 
-## 🧠 Conceito de Funcionamento
+1. **Aquecimento do sensor**
 
-O MQ-135 não mede CO₂ diretamente. Ele funciona variando sua resistência interna conforme a presença de gases no ambiente.
+   * Tempo mínimo: 30 segundos (teste)
+   * Ideal: 24 horas (primeiro uso)
 
-- Para estimar o valor em PPM, foi necessário:
+2. **Coleta de amostras**
 
-- Ler o valor analógico do sensor
+   * 200 leituras do sensor
+   * Intervalo entre leituras: 50 ms
 
-- Converter para tensão
+3. **Cálculo da resistência (RS)**
 
-- Calcular a resistência do sensor (RS)
+   * Baseado na tensão lida no pino analógico
 
-- Determinar a razão RS/R0
+4. **Filtragem de ruído**
 
-- Aplicar equação logarítmica baseada no datasheet
+   * Coleta adicional de 50 leituras
+   * Média final mais estável
 
-## 📐 Fórmulas Utilizadas
+5. **Cálculo do R0**
 
-### 1️⃣ Conversão para tensão
+   * Fórmula:
 
-$$ V = leitura \times \frac{5.0}{1023.0} $$
-	
+     ```
+     R0 = RS / 3.6
+     ```
+   * 3.6 representa o fator de ar limpo (datasheet)
 
-### 2️⃣ Cálculo da resistência do sensor (RS)
+6. **Validação da calibração**
 
-$$ RS = \left(\frac{5.0}{V} - 1\right) \times RL $$
+   * Análise de dispersão:
+
+     * < 5% → Confiável
+     * 5%–15% → Aceitável
+     * > 15% → Repetir calibração
+
+---
+
+## 📊 Saída da calibração
+
+Exemplo:
+
+```
+RS média: 40 kOhm
+R0 calculado: 11.11 kOhm
+Dispersão: 3.2%
+```
+
+---
+
+# 🧠 🔍 Funcionamento do Código
+
+## 🔹 1. Leitura do Sensor
+
+* O sensor retorna um valor analógico (0–1023)
+* Convertido em tensão:
+
+  ```
+  V = leitura * (5.0 / 1023.0)
+  ```
+
+---
+
+## 🔹 2. Cálculo da resistência (RS)
+
+```
+RS = RL * (VCC - V) / V
+```
 
 Onde:
 
-RL = 10kΩ (resistor de carga do módulo)
+* RL = 10kΩ
+* VCC = 5V
 
-### 3️⃣ Cálculo da razão
+---
 
-$$ ratio = \frac{RS}{R0} $$
+## 🔹 3. Cálculo da razão (RS/R0)
 
-
-### 4️⃣ Equação para estimar CO₂ em PPM
-
-$$ CO_2 = 116.6020682 \times ratio^{-2.769034857} $$
-
-Essa equação é uma aproximação baseada na curva do fabricante.
-
-### 🧪 Processo de Calibração
-
-- Para obter resultados mais confiáveis:
-
-- Sensor ligado por aproximadamente 24 horas
-
-- Colocado em ambiente externo (ar limpo)
- 
-- Medido valor de RS
-
-
-### Fórmula de calibração
-$$ R_0 = \frac{R_S}{3.6} $$
-
-### Onde:
-- **R₀** = Resistência do sensor em ar limpo (valor de calibração)
-- **R_S** = Resistência atual do sensor medida durante calibração
-- **3.6** = Fator de calibração para ar limpo (ratio esperado)
-
-### Contexto importante:
-Esta fórmula é utilizada **durante a calibração** do sensor MQ-135, onde:
-
-1. O sensor é exposto ao **ar limpo** (ambiente sem gases poluentes)
-2. Mede-se o valor de **R_S** neste ambiente
-3. Considera-se que em ar limpo o **ratio = RS/R₀ = 3.6** (conforme datasheet)
-4. Isola-se R₀ = RS/3.6
-
-### Exemplo prático:
-```cpp
-// Durante calibração em ar limpo
-float RS_medido = 100000; // 100kΩ
-float R0 = RS_medido / 3.6; // ≈ 27.78kΩ
-
-// Este R0 será usado para cálculos futuros
-float ratio = RS_atual / R0;
+```
+ratio = RS / R0
 ```
 
-O valor de 3.6 corresponde à relação típica RS/R0 em ar limpo segundo o datasheet.
+👉 Esse é o valor mais importante do sistema
 
-### 📊 Valores Típicos de Referência
-- Ambiente	CO₂ (PPM)
-- Ar externo	~400 ppm
-- Ambiente fechado	600 – 1000 ppm
-- Qualidade ruim	2000+ ppm
+---
 
-### ⚠️ Limitações do Projeto
+## 🔹 4. Classificação da qualidade do ar
 
-- Sensor sensível à temperatura e umidade
+| RS/R0     | Qualidade   |
+| --------- | ----------- |
+| > 3.6     | Muito limpo |
+| 2.5 – 3.6 | Limpo       |
+| 1.5 – 2.5 | Moderado    |
+| 1.0 – 1.5 | Ruim        |
+| < 1.0     | Muito ruim  |
 
-- Detecta múltiplos gases (não apenas CO₂)
+---
 
-- Valor em PPM é estimado, não absoluto
+# ⚠️ Limitações do Sensor
 
-- Não substitui sensores NDIR profissionais
+* Não mede CO₂ com precisão absoluta
+* Sensível a múltiplos gases:
+
+  * álcool
+  * amônia
+  * fumaça
+* Influenciado por:
+
+  * umidade
+  * temperatura
+
+---
+
+# ✅ Vantagens da Abordagem Utilizada
+
+* Mais robusta que cálculo direto em PPM
+* Independente de calibração perfeita
+* Funciona em ambientes reais (inclusive alta umidade)
+* Ideal para monitoramento contínuo
+
+---
+
+# 🚀 Conclusão
+
+Este sistema utiliza o MQ-135 de forma eficiente ao:
+
+✔ Calibrar corretamente o sensor
+✔ Trabalhar com dados relativos (RS/R0)
+✔ Classificar a qualidade do ar de forma prática
+
+---
+
+# 📌 Observação Final
+
+Para aplicações mais precisas de CO₂, recomenda-se sensores específicos (NDIR).
+Este projeto é ideal para **detecção de variação e qualidade do ar ambiente**.
+
+---
